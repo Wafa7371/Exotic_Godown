@@ -1,0 +1,1870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Godown Inventory Manager</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface2: #1c2330;
+  --border: #30363d;
+  --accent: #f78166;
+  --accent2: #79c0ff;
+  --accent3: #56d364;
+  --accent4: #e3b341;
+  --text: #e6edf3;
+  --text2: #8b949e;
+  --danger: #f85149;
+  --in-color: #56d364;
+  --out-color: #f78166;
+}
+
+/* LIGHT THEME */
+body.light {
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --surface2: #eef1f5;
+  --border: #d0d7de;
+  --accent: #d1242f;
+  --accent2: #0969da;
+  --accent3: #1a7f37;
+  --accent4: #9a6700;
+  --text: #1f2328;
+  --text2: #656d76;
+  --danger: #d1242f;
+  --in-color: #1a7f37;
+  --out-color: #d1242f;
+}
+body.light input, body.light select {
+  background: #ffffff;
+  color: #1f2328;
+}
+body.light .color-row-wrap input {
+  background: transparent;
+  color: #1f2328;
+}
+body.light input:focus, body.light select:focus {
+  background: #f0f6ff !important;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { overflow-x: hidden; width: 100%; }
+body { font-family: 'Rajdhani', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* SYNC BAR */
+#syncBar { background: var(--surface2); border-bottom: 1px solid var(--border); padding: 5px 20px; font-size: 12px; font-family: 'Space Mono', monospace; display: flex; align-items: center; gap: 8px; color: var(--text2); }
+#syncDot { width: 8px; height: 8px; border-radius: 50%; background: var(--text2); flex-shrink: 0; }
+#syncDot.online { background: var(--accent3); box-shadow: 0 0 6px var(--accent3); }
+#syncDot.syncing { background: var(--accent4); animation: pulse 0.8s infinite; }
+#syncDot.error { background: var(--danger); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* HEADER */
+header { background: var(--surface); border-bottom: 2px solid var(--accent); padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; }
+header h1 { font-size: 20px; font-weight: 700; letter-spacing: 2px; color: var(--accent); text-transform: uppercase; }
+header span { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--text2); }
+
+/* TABS */
+.tabs { display: flex; background: var(--surface); padding: 0 20px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tab-btn { padding: 10px 18px; border: none; background: transparent; color: var(--text2); font-family: 'Rajdhani', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; transition: all 0.2s; }
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+
+main { padding: 20px; max-width: 1400px; margin: 0 auto; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* FORM */
+.form-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 20px; }
+.form-box h2 { font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 14px; color: var(--accent2); }
+.form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.form-group label { display: block; font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+.required-star { color: var(--danger); }
+input, select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-family: 'Rajdhani', sans-serif; font-size: 15px; outline: none; transition: border-color 0.2s; }
+input:focus, select:focus { border-color: var(--accent2); }
+select option { background: var(--surface); }
+
+/* IN/OUT TOGGLE */
+.type-toggle { display: flex; gap: 0; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); width: fit-content; }
+.type-btn { padding: 8px 24px; border: none; font-family: 'Rajdhani', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; background: var(--bg); color: var(--text2); transition: all 0.2s; }
+.type-btn.in.active { background: var(--in-color); color: #000; }
+.type-btn.out.active { background: var(--out-color); color: #000; }
+
+/* ARTICLE BLOCK */
+.article-block { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+.article-block-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.article-block-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--accent4); }
+
+/* COLOR ROWS */
+.color-table-header { display: grid; gap: 8px; padding: 0 10px; margin-bottom: 4px; }
+.color-table-header span { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); font-weight: 600; }
+.color-row-wrap { display: grid; gap: 8px; align-items: center; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; margin-bottom: 5px; }
+/* columns set dynamically via JS */
+.color-row-wrap input { background: transparent; border: none; border-bottom: 1px solid var(--border); border-radius: 0; padding: 3px 4px; font-size: 14px; color: var(--text); }
+.color-row-wrap input:focus { outline: none; border-bottom-color: var(--accent2); }
+.color-row-wrap input:disabled { color: var(--text2); opacity: 0.4; cursor: not-allowed; }
+.qty-badge { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; text-align: center; }
+.qty-badge.in { background: rgba(86,211,100,0.15); color: var(--in-color); border: 1px solid var(--in-color); }
+.qty-badge.out { background: rgba(247,129,102,0.15); color: var(--out-color); border: 1px solid var(--out-color); }
+
+/* BUTTONS */
+.btn { padding: 8px 16px; border: none; border-radius: 6px; font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; }
+.btn-primary { background: var(--accent2); color: #000; }
+.btn-success { background: var(--accent3); color: #000; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-icon { padding: 4px 8px; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* STATS */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+.stat-card .label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; }
+.stat-card .value { font-size: 26px; font-weight: 700; margin-top: 4px; font-family: 'Space Mono', monospace; }
+
+/* TABLE */
+.table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.table-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 8px; }
+.table-header h2 { font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent4); }
+.table-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+table { width: 100%; border-collapse: collapse; }
+th { background: var(--surface2); padding: 9px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); font-weight: 600; white-space: nowrap; }
+td { padding: 9px 12px; border-top: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
+tr:hover td { background: var(--surface2); }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.badge-in { background: rgba(86,211,100,0.15); color: var(--in-color); border: 1px solid var(--in-color); }
+.badge-out { background: rgba(247,129,102,0.15); color: var(--out-color); border: 1px solid var(--out-color); }
+
+.color-pills { display: flex; flex-wrap: wrap; gap: 3px; }
+.color-pill { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 7px; font-size: 12px; }
+.color-pill .cin { color: var(--in-color); font-weight: 700; }
+.color-pill .cout { color: var(--out-color); font-weight: 700; }
+
+.filter-bar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+.filter-bar input, .filter-bar select { width: auto; flex: 1; min-width: 130px; }
+
+.stock-qty { font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700; }
+.sp { color: var(--accent3); }
+.sn { color: var(--danger); }
+.sz { color: var(--text2); }
+
+.godown-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.g-chip { padding: 5px 14px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text2); font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; text-transform: uppercase; transition: all 0.2s; }
+.g-chip:hover { border-color: var(--accent2); color: var(--accent2); }
+.g-chip.active { background: var(--accent2); color: #000; border-color: var(--accent2); }
+
+.divider { height: 1px; background: var(--border); margin: 14px 0; }
+.section-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text2); margin-bottom: 8px; font-weight: 700; }
+.empty-state { text-align: center; padding: 40px; color: var(--text2); }
+.empty-state .ico { font-size: 36px; margin-bottom: 8px; }
+
+/* MODAL */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; align-items: flex-start; justify-content: center; z-index: 200; overflow-y: auto; padding: 20px 12px; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: 90%; max-width: 460px; }
+.modal h3 { font-size: 17px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 16px; color: var(--accent); }
+
+/* LOADING */
+#loadingOverlay { position: fixed; inset: 0; background: rgba(13,17,23,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 999; gap: 14px; }
+#loadingOverlay.hidden { display: none; }
+.spinner { width: 38px; height: 38px; border: 3px solid var(--border); border-top-color: var(--accent2); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#loadingText { font-size: 13px; color: var(--text2); font-family: 'Space Mono', monospace; }
+
+/* TOAST */
+#toast { position: fixed; bottom: 20px; right: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 18px; font-size: 14px; z-index: 300; transform: translateY(80px); opacity: 0; transition: all 0.3s; max-width: 300px; }
+#toast.show { transform: translateY(0); opacity: 1; }
+#toast.success { border-color: var(--accent3); color: var(--accent3); }
+#toast.error { border-color: var(--danger); color: var(--danger); }
+
+.shortcut-hint {
+  font-size: 10px; color: var(--text2); font-weight: 400;
+  letter-spacing: 0; text-transform: none; margin-left: 10px;
+  opacity: 0.7;
+}
+/* Tally-style active field highlight */
+input:focus {
+  border-color: var(--accent2) !important;
+  background: #111827 !important;
+  box-shadow: 0 0 0 2px rgba(121,192,255,0.12);
+}
+/* Selected/highlighted row */
+.color-row-wrap:focus-within {
+  border-color: var(--accent2);
+  background: rgba(121,192,255,0.04);
+}
+/* DASHBOARD */
+.dash-section { margin-bottom: 24px; }
+.dash-section h3 { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text2); margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.godown-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+.godown-card-title { font-size: 16px; font-weight: 700; color: var(--accent2); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.godown-card-title span { font-size: 11px; color: var(--text2); font-weight: 400; }
+.gd-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.gd-stat { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; text-align: center; }
+.gd-stat .lbl { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; }
+.gd-stat .val { font-size: 22px; font-weight: 700; font-family: 'Space Mono', monospace; margin-top: 2px; }
+.art-mini-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.art-mini-table th { font-size: 10px; text-transform: uppercase; color: var(--text2); padding: 4px 8px; text-align: left; background: var(--surface2); }
+.art-mini-table td { padding: 5px 8px; border-top: 1px solid var(--border); }
+.art-mini-table tr:hover td { background: var(--surface2); }
+
+/* VIEWER BANNER */
+#viewerBanner { display:none; background: linear-gradient(90deg, #e3b341 0%, #f78166 100%); color: #000; padding: 8px 20px; font-size: 13px; font-weight: 700; text-align: center; letter-spacing: 0.5px; }
+
+/* ACCESS CODE */
+.access-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 500; }
+.access-modal.hidden { display: none; }
+.access-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 32px; width: 90%; max-width: 360px; text-align: center; }
+.access-box h2 { font-size: 18px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+.access-box p { color: var(--text2); font-size: 13px; margin-bottom: 20px; }
+.access-box input { text-align: center; font-size: 20px; letter-spacing: 4px; font-family: 'Space Mono', monospace; }
+
+/* DASHBOARD */
+.dash-section { margin-bottom: 24px; }
+.dash-section h3 { font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent4); margin-bottom: 14px; }
+.godown-cards-grid { display: flex; flex-direction: column; gap: 16px; width: 100%; }
+.godown-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; width: 100%; overflow: hidden; }
+.godown-card-title { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 12px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.godown-card-title span { font-size: 11px; color: var(--text2); font-weight: 400; font-family: 'Space Mono', monospace; flex-shrink: 0; }
+.gd-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.gd-stat { background: var(--surface2); border-radius: 6px; padding: 10px; text-align: center; }
+.gd-stat .lbl { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; }
+.gd-stat .val { font-size: 20px; font-weight: 700; font-family: 'Space Mono', monospace; margin-top: 2px; }
+.art-accordion { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; width: 100%; }
+.art-row { display: grid; grid-template-columns: minmax(60px,1.2fr) 50px 50px 50px 18px; gap: 4px; align-items: center; padding: 9px 8px; cursor: pointer; transition: background 0.15s; font-size: 13px; }
+.art-row:not(:first-child) { border-top: 1px solid var(--border); }
+.art-row:hover { background: var(--surface2); }
+.art-no { font-family: 'Space Mono', monospace; font-weight: 700; color: var(--accent2); font-size: 13px; }
+.art-name { display: none; }
+.art-expand-icon { color: var(--text2); font-size: 10px; text-align: center; }
+.art-detail { background: var(--surface2); border-top: 1px solid var(--border); overflow-x: auto; }
+
+@media(max-width: 768px) {
+  main { padding: 10px; }
+  .godown-cards-grid { gap: 12px; }
+  .godown-card { padding: 12px; }
+  header h1 { font-size: 16px; }
+  header span { display: none; }
+  .tabs { padding: 0 8px; }
+  .tab-btn { padding: 8px 10px; font-size: 12px; letter-spacing: 0; }
+  .form-row { grid-template-columns: 1fr; }
+  .color-row-wrap { grid-template-columns: 1fr 90px auto !important; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .stat-card .value { font-size: 22px; }
+  .gd-stats { grid-template-columns: repeat(3, 1fr); }
+  table { font-size: 12px; }
+  th, td { padding: 7px 8px; }
+  .type-toggle { width: 100%; }
+  .type-btn { flex: 1; }
+  .filter-bar { gap: 6px; }
+  .filter-bar input, .filter-bar select { min-width: 100px; }
+  .table-header { padding: 10px 12px; }
+  .table-actions { gap: 4px; }
+  .btn-sm { padding: 4px 8px; font-size: 11px; }
+  #syncBar { font-size: 10px; padding: 4px 10px; }
+  .shortcut-hint { display: none; }
+  .article-block { padding: 10px; }
+}
+</style>
+</head>
+<body>
+
+<div id="loadingOverlay">
+  <div class="spinner"></div>
+  <div id="loadingText">Loading data from cloud...</div>
+</div>
+<div id="toast"></div>
+
+<div id="viewerBanner" style="display:none;background:var(--surface2);border-bottom:2px solid var(--accent4);padding:8px 16px;align-items:center;gap:10px;flex-wrap:wrap">
+  <span style="font-size:13px;color:var(--accent4);font-weight:700">👁 View Only</span>
+  <span style="font-size:12px;color:var(--text2)">Read-only access. Login to edit.</span>
+  <button onclick="showLoginScreen()" style="margin-left:auto;background:var(--accent2);color:#000;border:none;padding:5px 14px;border-radius:6px;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;cursor:pointer">🔑 Login</button>
+</div>
+<div id="syncBar">
+  <span id="syncDot"></span>
+  <span id="syncStatus">Connecting...</span>
+</div>
+
+<header>
+  <h1>📦 Godown Inventory</h1>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span id="headerDate"></span>
+    <button id="themeBtn" onclick="toggleTheme()" style="background:transparent;border:1px solid var(--border);color:var(--text2);padding:5px 12px;border-radius:20px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;transition:all 0.2s" title="Toggle Light/Dark">🌙 Dark</button>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn" onclick="showTab('dashboard',this)">🏠 Dashboard</button>
+  <button class="tab-btn active edit-only" onclick="showTab('entry',this)">➕ Entry</button>
+  <button class="tab-btn" onclick="showTab('ledger',this)">📋 Ledger</button>
+  <button class="tab-btn" onclick="showTab('stock',this)">📊 Stock</button>
+  <button class="tab-btn edit-only" onclick="showTab('godowns',this)">🏭 Godowns</button>
+  <button class="tab-btn" id="adminTabBtn" onclick="showTab('admin',this)" style="display:none">⚙️ Admin</button>
+</div>
+
+<main>
+
+<!-- ══════════════ DASHBOARD TAB ══════════════ -->
+<div class="tab-content" id="tab-dashboard">
+  <div id="dashboardContent"></div>
+</div>
+
+<!-- ══════════════ ADMIN TAB ══════════════ -->
+<div class="tab-content" id="tab-admin">
+  <div class="form-box" style="max-width:560px">
+    <h2>⚙️ Access Management</h2>
+    <div style="margin-bottom:16px;padding:14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Access Status</div>
+      <strong id="loggedInEmail" style="color:var(--accent2)">Editor (Password Login)</strong>
+      <button class="btn btn-ghost btn-sm" onclick="logoutUser()" style="margin-left:10px">Logout</button>
+    </div>
+    <div style="padding:14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);margin-bottom:12px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">🔑 Editor Password</div>
+      <div id="approvedUsers" style="font-size:14px;color:var(--text)">Share <strong style="color:var(--accent2);font-family:'Space Mono',monospace">Wafa@786</strong> with people you want to give edit access.</div>
+    </div>
+    <div id="pendingRequests" style="display:none"></div>
+  </div>
+</div>
+
+<!-- LOGIN SCREEN OVERLAY -->
+<div id="loginScreen" style="display:none;position:fixed;inset:0;background:rgba(13,17,23,0.97);z-index:500;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;width:100%;max-width:360px;text-align:center">
+    <div style="font-size:40px;margin-bottom:8px">📦</div>
+    <h2 style="font-size:20px;font-weight:700;letter-spacing:2px;color:var(--accent);text-transform:uppercase;margin-bottom:6px">Godown Inventory</h2>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:24px">Enter password to get editor access</p>
+    <input type="password" id="loginPassword" placeholder="Enter password" style="width:100%;margin-bottom:12px;text-align:center;font-size:16px;letter-spacing:2px">
+    <button onclick="checkPassword()" class="btn btn-success" style="width:100%;font-size:15px">🔓 Unlock</button>
+    <p id="loginError" style="color:var(--danger);font-size:12px;margin-top:10px;display:none">❌ Wrong password! Try again.</p>
+    <button onclick="hideLoginScreen()" style="margin-top:20px;background:transparent;border:none;color:var(--text2);font-size:13px;cursor:pointer">✕ Cancel</button>
+  </div>
+</div>
+
+<!-- ══════════════ ENTRY TAB ══════════════ -->
+<div class="tab-content active" id="tab-entry">
+  <div class="form-box">
+    <h2>➕ New Entry</h2>
+
+    <!-- Row 1: Godown, IN/OUT, Date -->
+    <div class="form-row" style="align-items:end">
+      <div class="form-group">
+        <label>Godown <span class="required-star">*</span></label>
+        <select id="entryGodown"><option value="">— Select Godown —</option></select>
+      </div>
+      <div class="form-group">
+        <label>Type <span class="required-star">*</span></label>
+        <div class="type-toggle">
+          <button class="type-btn in active" id="btnIN" onclick="setType('IN')">▲ IN</button>
+          <button class="type-btn out" id="btnOUT" onclick="setType('OUT')">▼ OUT</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Date <span class="required-star">*</span></label>
+        <input type="date" id="entryDate">
+      </div>
+      <div class="form-group">
+        <label>Party / Supplier</label>
+        <input type="text" id="entryParty" placeholder="Optional">
+      </div>
+      <div class="form-group">
+        <label>Remarks</label>
+        <input type="text" id="entryRemarks" placeholder="Optional">
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Articles -->
+    <div class="section-lbl">Articles</div>
+    <div id="articlesContainer"></div>
+    <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="addArticleBlock()">
+      + Add Another Article &nbsp;<span style="font-size:10px;opacity:0.6">(Ctrl+Enter)</span>
+    </button>
+
+    <div class="divider"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-success" id="saveBtn" onclick="saveEntry()">✅ Save Entry</button>
+      <button class="btn btn-ghost" onclick="resetForm()">🔄 Reset</button>
+    </div>
+  </div>
+
+  <div class="stats-row" id="quickStats"></div>
+</div>
+
+<!-- ══════════════ LEDGER TAB ══════════════ -->
+<div class="tab-content" id="tab-ledger">
+  <div class="filter-bar">
+    <input type="text" id="fArt" placeholder="🔍 Article..." oninput="renderLedger()">
+    <select id="fGdn" onchange="renderLedger()"><option value="">All Godowns</option></select>
+    <select id="fType" onchange="renderLedger()">
+      <option value="">All Types</option>
+      <option value="IN">IN</option>
+      <option value="OUT">OUT</option>
+    </select>
+    <input type="date" id="fFrom" onchange="renderLedger()">
+    <input type="date" id="fTo" onchange="renderLedger()">
+    <button class="btn btn-ghost btn-sm" onclick="clearFilters()">✕ Clear</button>
+  </div>
+  <div class="table-wrap">
+    <div class="table-header">
+      <h2>📋 All Entries</h2>
+      <div class="table-actions">
+        <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ CSV</button>
+        <button class="btn btn-success btn-sm" onclick="exportLedgerExcel()">📊 Excel</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Date</th><th>Saved At</th><th>Godown</th><th>Type</th>
+            <th>Article No.</th><th>Article Name</th>
+            <th>Colors / Qty</th><th>Total Qty</th>
+            <th>Party</th><th>Remarks</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="ledgerBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ STOCK TAB ══════════════ -->
+<div class="tab-content" id="tab-stock">
+  <div class="filter-bar">
+    <input type="text" id="fStockArt" placeholder="🔍 Article..." oninput="renderStock()">
+    <select id="fStockGdn" onchange="setStockGodown(this.value)"><option value="">All Godowns</option></select>
+  </div>
+  <div class="godown-chips" id="stockChips"></div>
+  <div class="table-wrap">
+    <div class="table-header">
+      <h2>📊 Current Stock</h2>
+      <div class="table-actions">
+        <button class="btn btn-ghost btn-sm" onclick="exportStockCSV()">⬇ CSV</button>
+        <button class="btn btn-success btn-sm" onclick="exportStockExcel()">📊 Excel</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Article No.</th><th>Article Name</th><th>Godown</th>
+            <th>Color</th><th>Total IN</th><th>Total OUT</th><th>Stock</th>
+          </tr>
+        </thead>
+        <tbody id="stockBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ GODOWNS TAB ══════════════ -->
+<div class="tab-content" id="tab-godowns">
+  <div class="form-box">
+    <h2>🏭 Manage Godowns</h2>
+    <div class="form-row" style="max-width:380px">
+      <div class="form-group">
+        <label>Godown Name</label>
+        <input type="text" id="newGodownName" placeholder="e.g. Delhi Godown A">
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="addGodown()">+ Add Godown</button>
+  </div>
+  <div class="table-wrap">
+    <div class="table-header"><h2>All Godowns</h2></div>
+    <table>
+      <thead><tr><th>#</th><th>Godown Name</th><th>Actions</th></tr></thead>
+      <tbody id="godownsBody"></tbody>
+    </table>
+  </div>
+</div>
+
+</main>
+
+<!-- Delete Modal -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <h3>⚠️ Delete Entry</h3>
+    <p style="color:var(--text2);margin-bottom:18px">This entry will be permanently deleted. Confirm?</p>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+      <button class="btn btn-ghost" onclick="closeDeleteModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Godown Modal -->
+<div class="modal-overlay" id="editGodownModal">
+  <div class="modal">
+    <h3>✏️ Edit Godown Name</h3>
+    <div class="form-group" style="margin-bottom:16px">
+      <label>New Name</label>
+      <input type="text" id="editGodownInput" placeholder="Enter new godown name" autocomplete="off">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="confirmEditGodown()">✅ Save</button>
+      <button class="btn btn-ghost" onclick="closeEditGodownModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Entry Modal -->
+<div class="modal-overlay" id="editEntryModal">
+  <div class="modal" style="max-width:500px;width:calc(100% - 24px);margin:12px auto;padding:16px;max-height:90vh;overflow-y:auto">
+    <h3 style="font-size:16px;margin-bottom:14px">✏️ Edit Entry</h3>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div class="form-group"><label>Date</label><input type="date" id="eeDate"></div>
+      <div class="form-group"><label>Type</label>
+        <select id="eeType"><option value="IN">IN</option><option value="OUT">OUT</option></select>
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-bottom:10px">
+      <label>Godown</label>
+      <select id="eeGodown" style="width:100%"></select>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div class="form-group"><label>Article No. *</label><input type="text" id="eeArticle" placeholder="Article No."></div>
+      <div class="form-group"><label>Article Name</label><input type="text" id="eeArticleName" placeholder="Optional"></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      <div class="form-group"><label>Party</label><input type="text" id="eeParty" placeholder="Party"></div>
+      <div class="form-group"><label>Remarks</label><input type="text" id="eeRemarks" placeholder="Remarks"></div>
+    </div>
+
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:6px">Colors & Qty</div>
+    <div style="display:grid;grid-template-columns:1fr 70px 70px 32px;gap:6px;padding:4px 6px;margin-bottom:4px">
+      <span style="font-size:10px;color:var(--text2);text-transform:uppercase">Color</span>
+      <span style="font-size:10px;color:var(--in-color);text-transform:uppercase;text-align:center">IN</span>
+      <span style="font-size:10px;color:var(--out-color);text-transform:uppercase;text-align:center">OUT</span>
+      <span></span>
+    </div>
+    <div id="eeColorRows" style="margin-bottom:8px"></div>
+    <button class="btn btn-ghost btn-sm" onclick="eeAddColorRow()" style="margin-bottom:14px;width:100%">+ Add Color Row</button>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="btn btn-primary" onclick="confirmEditEntry()" style="width:100%">✅ Save</button>
+      <button class="btn btn-ghost" onclick="closeEditEntryModal()" style="width:100%">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// SUPABASE
+// ═══════════════════════════════════════
+const SURL = 'https://qomevyfejayardnjjrun.supabase.co';
+const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvbWV2eWZlamF5YXJkbmpqcnVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NTUzNzcsImV4cCI6MjA5MzAzMTM3N30.l4rniPztv78JeLcHEpCzhbY8ULCXw-CDyhNXYkpTEYo';
+const sb = supabase.createClient(SURL, SKEY);
+
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+let appData = { godowns: [], entries: [] };
+let deleteTarget = null;
+let editGodownOldName = null;
+let editEntryId = null;
+let activeStockGodown = '';
+let currentType = 'IN'; // global IN/OUT selection
+let articleCount = 0;
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+window.onload = async () => {
+  applyStoredTheme();
+  document.getElementById('entryDate').value = todayStr();
+  document.getElementById('headerDate').textContent = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+  // Enter on unlock code input
+  const unlockInput = document.getElementById('unlockCodeInput');
+  if (unlockInput) {
+    unlockInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') tryUnlockWithCode();
+    });
+  }
+
+  // Enter on password field
+  const pwdInput = document.getElementById('loginPassword');
+  if (pwdInput) pwdInput.addEventListener('keydown', e => { if (e.key === 'Enter') checkPassword(); });
+
+  // Esc clears top-level text inputs; Enter on party/remarks moves to articles
+  ['entryParty','entryRemarks'].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { e.preventDefault(); el.value = ''; }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const firstArt = document.querySelector('.ab-artno');
+        if (firstArt) { firstArt.focus(); firstArt.select(); }
+      }
+    });
+  });
+
+  setSyncStatus('syncing', 'Connecting to cloud...');
+  await loadAll();
+  addArticleBlock(); // first article block
+  await checkAuthSession();
+
+  // Real-time subscriptions
+  sb.channel('rt-godowns')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'godowns' }, p => {
+      if (!appData.godowns.includes(p.new.name)) { appData.godowns.push(p.new.name); renderAll(); }
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'godowns' }, p => {
+      appData.godowns = appData.godowns.filter(g => g !== p.old.name);
+      appData.entries = appData.entries.filter(e => e.godown !== p.old.name);
+      renderAll();
+    })
+    .subscribe();
+
+  // Global Ctrl+S = Save Entry (Tally-style)
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key === 's') {
+      e.preventDefault();
+      const entryTab = document.getElementById('tab-entry');
+      if (entryTab.classList.contains('active')) saveEntry();
+    }
+  });
+
+  sb.channel('rt-entries')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'entries' }, p => {
+      if (appData.entries.find(x => x.id === p.new.id)) return;
+      appData.entries.unshift(dbRowToEntry(p.new));
+      renderAll();
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'entries' }, p => {
+      appData.entries = appData.entries.filter(e => e.id !== p.old.id);
+      setSyncStatus('online', 'Synced — ' + new Date().toLocaleTimeString('en-IN'));
+      renderAll();
+    })
+    .subscribe();
+};
+
+function dbRowToEntry(row) {
+  return {
+    id: row.id,
+    godown: row.godown,
+    type: row.type,
+    date: row.date,
+    article: row.article,
+    articleName: row.article_name || '',
+    party: row.party || '',
+    remarks: row.remarks || '',
+    colors: row.colors || [],
+    totalQty: row.total_qty || 0,
+    createdAt: row.created_at || null
+  };
+}
+
+// ═══════════════════════════════════════
+// LOAD FROM CLOUD
+// ═══════════════════════════════════════
+async function loadAll() {
+  try {
+    setSyncStatus('syncing', 'Loading data...');
+    const [{ data: godowns, error: ge }, { data: entries, error: ee }] = await Promise.all([
+      sb.from('godowns').select('*').order('created_at'),
+      sb.from('entries').select('*').order('created_at', { ascending: false })
+    ]);
+    if (ge || ee) throw ge || ee;
+    appData.godowns = (godowns || []).map(g => g.name);
+    appData.entries = (entries || []).map(dbRowToEntry);
+    setSyncStatus('online', 'Synced — ' + new Date().toLocaleTimeString('en-IN'));
+    renderAll();
+    document.getElementById('loadingOverlay').classList.add('hidden');
+  } catch (err) {
+    setSyncStatus('error', 'Sync error! Check your internet.');
+    document.getElementById('loadingOverlay').classList.add('hidden');
+    toast('Cloud sync failed.', 'error');
+  }
+}
+
+// ═══════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════
+function setSyncStatus(s, msg) {
+  document.getElementById('syncDot').className = s;
+  document.getElementById('syncStatus').textContent = msg;
+}
+
+let _tt;
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  clearTimeout(_tt);
+  _tt = setTimeout(() => el.className = '', 3000);
+}
+
+function showTab(t, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + t).classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+
+function fmtDate(d) {
+  if (!d) return '—';
+  const [y, m, day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const day = String(d.getDate()).padStart(2,'0');
+  const mon = String(d.getMonth()+1).padStart(2,'0');
+  const yr = d.getFullYear();
+  const hr = String(d.getHours()).padStart(2,'0');
+  const min = String(d.getMinutes()).padStart(2,'0');
+  return `${day}/${mon}/${yr} ${hr}:${min}`;
+}
+
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  const btn = document.getElementById('themeBtn');
+  btn.textContent = isLight ? '🌙 Dark' : '☀️ Light';
+  localStorage.setItem('godownTheme', isLight ? 'light' : 'dark');
+}
+function applyStoredTheme() {
+  const stored = localStorage.getItem('godownTheme');
+  if (stored === 'light') {
+    document.body.classList.add('light');
+    const btn = document.getElementById('themeBtn');
+    if (btn) btn.textContent = '🌙 Dark';
+  }
+}
+
+// ═══════════════════════════════════════
+// TYPE TOGGLE (IN / OUT)
+// ═══════════════════════════════════════
+function setType(t) {
+  currentType = t;
+  document.getElementById('btnIN').classList.toggle('active', t === 'IN');
+  document.getElementById('btnOUT').classList.toggle('active', t === 'OUT');
+  // Update all color row headers, type visibility, and color suggestions
+  document.querySelectorAll('.article-block').forEach(block => {
+    updateColorHeaders(block);
+    // For OUT: pre-fill color suggestions if article already entered
+    refreshColorSuggest(block);
+  });
+}
+
+// ═══════════════════════════════════════
+// ARTICLE BLOCKS
+// ═══════════════════════════════════════
+// Get colors already used IN for an article (for OUT suggestions)
+function getInColorsForArticle(artno) {
+  if (!artno) return [];
+  const norm = artno.trim().toLowerCase();
+  const colors = new Set();
+  appData.entries.forEach(e => {
+    if (e.type === 'IN' && e.article.toLowerCase() === norm) {
+      (e.colors || []).forEach(c => {
+        if (c.color) colors.add(c.color.toLowerCase().trim());
+      });
+    }
+  });
+  return [...colors].map(c => c.charAt(0).toUpperCase() + c.slice(1));
+}
+
+function addArticleBlock() {
+  articleCount++;
+  const idx = articleCount;
+  const container = document.getElementById('articlesContainer');
+  const block = document.createElement('div');
+  block.className = 'article-block';
+  block.dataset.idx = idx;
+  const dlId = 'artSuggest_' + idx;
+  block.innerHTML = `
+    <div class="article-block-header">
+      <span class="article-block-title">Article #${idx}
+        <span class="shortcut-hint">
+          Tab/Enter = next &nbsp;|&nbsp; Esc = clear field &nbsp;|&nbsp; Ctrl+Enter = new article &nbsp;|&nbsp; Ctrl+S = save
+        </span>
+      </span>
+      ${idx > 1 ? `<button class="btn btn-danger btn-sm btn-icon" onclick="removeArticleBlock(this)" tabindex="-1">✕ Remove</button>` : ''}
+    </div>
+    <div class="form-row" style="margin-bottom:10px">
+      <div class="form-group">
+        <label>Article Number <span class="required-star">*</span></label>
+        <input type="text" class="ab-artno" placeholder="Article No." list="${dlId}" autocomplete="off">
+        <datalist id="${dlId}"></datalist>
+      </div>
+      <div class="form-group">
+        <label>Article Name <span style="color:var(--text2);font-weight:400">(Optional)</span></label>
+        <input type="text" class="ab-artname" placeholder="Article Name">
+      </div>
+    </div>
+    <div class="color-header-row" style="display:grid;gap:8px;padding:0 10px;margin-bottom:4px"></div>
+    <div class="color-rows-wrap"></div>
+    <button class="btn btn-ghost btn-sm add-color-btn" style="margin-top:4px" onclick="addColorRowAndFocus(this)" tabindex="-1">
+      + Add Color &nbsp;<span style="font-size:10px;opacity:0.6">[Enter on Qty]</span>
+    </button>
+  `;
+  container.appendChild(block);
+  updateColorHeaders(block);
+
+  const artInput = block.querySelector('.ab-artno');
+  const artName = block.querySelector('.ab-artname');
+
+  // Article no: Enter -> move to article name
+  artInput.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      addArticleBlock();
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      artName.focus();
+    }
+    if (e.key === 'Escape') { e.preventDefault(); artInput.value = ''; }
+  });
+  artInput.addEventListener('change', () => refreshColorSuggest(block));
+  artInput.addEventListener('input', () => refreshColorSuggest(block));
+
+  // Article name: Enter -> move to first color row
+  artName.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      addArticleBlock();
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const firstColor = block.querySelector('.cr-color');
+      if (firstColor) { firstColor.focus(); firstColor.select(); }
+    }
+    if (e.key === 'Escape') { e.preventDefault(); artName.value = ''; }
+  });
+
+  // Ctrl+Enter handled per-field above with stopPropagation
+
+  // Add first color row WITHOUT triggering extra (focusIt=true only for first)
+  addColorRow(block.querySelector('.add-color-btn'), true);
+  refreshArticleSuggest(block, idx);
+
+  // Focus article number input
+  setTimeout(() => { artInput.focus(); artInput.select(); }, 30);
+}
+
+function removeArticleBlock(btn) {
+  btn.closest('.article-block').remove();
+}
+
+// Called by + Add Color button click only
+function addColorRowAndFocus(btn) {
+  addColorRow(btn, true);
+}
+
+function refreshArticleSuggest(block, idx) {
+  const dlId = 'artSuggest_' + idx;
+  const dl = document.getElementById(dlId);
+  if (!dl) return;
+  const arts = [...new Set(appData.entries.map(e => e.article))];
+  dl.innerHTML = arts.map(a => `<option value="${a}">`).join('');
+}
+
+function refreshColorSuggest(block) {
+  const artno = block.querySelector('.ab-artno').value.trim();
+  // Only show IN-colors as suggestions when type is OUT
+  if (currentType !== 'OUT' || !artno) return;
+  const inColors = getInColorsForArticle(artno);
+  block.querySelectorAll('.cr-color').forEach(input => {
+    let dl = input.nextElementSibling;
+    if (!dl || dl.tagName !== 'DATALIST') {
+      dl = document.createElement('datalist');
+      dl.id = 'colorSuggest_' + Math.random().toString(36).slice(2);
+      input.setAttribute('list', dl.id);
+      input.parentNode.insertBefore(dl, input.nextSibling);
+    }
+    dl.innerHTML = inColors.map(c => `<option value="${c}">`).join('');
+  });
+}
+
+function updateColorHeaders(block) {
+  const hdr = block.querySelector('.color-header-row');
+  if (currentType === 'IN') {
+    hdr.style.gridTemplateColumns = '1fr 110px auto';
+    hdr.innerHTML = `
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px">Color (Optional)</span>
+      <span class="qty-badge in">IN Qty</span>
+      <span></span>`;
+  } else {
+    hdr.style.gridTemplateColumns = '1fr 110px auto';
+    hdr.innerHTML = `
+      <span style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px">Color (Optional)</span>
+      <span class="qty-badge out">OUT Qty</span>
+      <span></span>`;
+  }
+  block.querySelectorAll('.color-row-wrap').forEach(row => applyTypeToRow(row));
+  // Refresh color suggestions when type changes
+  refreshColorSuggest(block);
+}
+
+function applyTypeToRow(row) {
+  const inInput = row.querySelector('.cr-in');
+  const outInput = row.querySelector('.cr-out');
+  const inWrap = row.querySelector('.in-wrap');
+  const outWrap = row.querySelector('.out-wrap');
+  if (currentType === 'IN') {
+    row.style.gridTemplateColumns = '1fr 110px auto';
+    inWrap.style.display = '';
+    outWrap.style.display = 'none';
+    outInput.value = '';
+  } else {
+    row.style.gridTemplateColumns = '1fr 110px auto';
+    inWrap.style.display = 'none';
+    outWrap.style.display = '';
+    inInput.value = '';
+  }
+}
+
+function addColorRow(btn, focusIt = true) {
+  const block = btn.closest('.article-block');
+  const container = block.querySelector('.color-rows-wrap');
+  const row = document.createElement('div');
+  row.className = 'color-row-wrap';
+  row.innerHTML = `
+    <input type="text" placeholder="Color" class="cr-color" autocomplete="off">
+    <span class="in-wrap"><input type="number" placeholder="0" class="cr-in" min="0" step="1"></span>
+    <span class="out-wrap"><input type="number" placeholder="0" class="cr-out" min="0" step="1"></span>
+    <button class="btn btn-danger btn-icon btn-sm" onclick="removeColorRow(this)" tabindex="-1">✕</button>
+  `;
+  container.appendChild(row);
+  applyTypeToRow(row);
+
+  const colorInput = row.querySelector('.cr-color');
+  const inInput = row.querySelector('.cr-in');
+  const outInput = row.querySelector('.cr-out');
+
+  // Color suggestions for OUT mode
+  const artno = block.querySelector('.ab-artno').value.trim();
+  if (currentType === 'OUT' && artno) {
+    const inColors = getInColorsForArticle(artno);
+    if (inColors.length) {
+      const dl = document.createElement('datalist');
+      dl.id = 'colorSuggest_' + Math.random().toString(36).slice(2);
+      colorInput.setAttribute('list', dl.id);
+      dl.innerHTML = inColors.map(c => `<option value="${c}">`).join('');
+      colorInput.parentNode.insertBefore(dl, colorInput.nextSibling);
+    }
+  }
+
+  // ── Tally-style keyboard navigation ──
+
+  // Color field
+  colorInput.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      addArticleBlock();
+      return;
+    }
+    if (e.key === 'Escape') { e.preventDefault(); colorInput.value = ''; return; }
+    if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+      e.preventDefault();
+      const qty = currentType === 'IN' ? inInput : outInput;
+      qty.focus(); qty.select();
+    }
+    if (e.key === 'Tab' && e.shiftKey) {
+      // Shift+Tab goes to previous row's qty or article name
+      e.preventDefault();
+      const rows = Array.from(block.querySelectorAll('.color-row-wrap'));
+      const ri = rows.indexOf(row);
+      if (ri > 0) {
+        const prevQty = rows[ri-1].querySelector(currentType === 'IN' ? '.cr-in' : '.cr-out');
+        prevQty.focus(); prevQty.select();
+      } else {
+        block.querySelector('.ab-artname').focus();
+      }
+    }
+  });
+
+  // Qty field (in or out)
+  const qtyHandler = (e) => {
+    const qty = currentType === 'IN' ? inInput : outInput;
+
+    // Ctrl+Enter: only add new article, stop everything else
+    if (e.ctrlKey && e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation(); // prevent block-level listener from firing again
+      addArticleBlock();
+      return;
+    }
+
+    if (e.key === 'Escape') { e.preventDefault(); qty.value = ''; qty.focus(); qty.select(); return; }
+
+    if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+      e.preventDefault();
+      const rows = Array.from(block.querySelectorAll('.color-row-wrap'));
+      const ri = rows.indexOf(row);
+      if (ri === rows.length - 1) {
+        if (e.key === 'Enter') {
+          addColorRow(block.querySelector('.add-color-btn'), true);
+        } else {
+          const allBlocks = Array.from(document.querySelectorAll('.article-block'));
+          const bi = allBlocks.indexOf(block);
+          if (bi < allBlocks.length - 1) {
+            allBlocks[bi+1].querySelector('.ab-artno').focus();
+          } else {
+            document.getElementById('saveBtn').focus();
+          }
+        }
+      } else {
+        rows[ri+1].querySelector('.cr-color').focus();
+      }
+    }
+
+    if (e.key === 'Tab' && e.shiftKey) {
+      e.preventDefault();
+      colorInput.focus(); colorInput.select();
+    }
+  };
+
+  inInput.addEventListener('keydown', qtyHandler);
+  outInput.addEventListener('keydown', qtyHandler);
+
+  if (focusIt) { colorInput.focus(); colorInput.select(); }
+  return row;
+}
+
+function removeColorRow(btn) {
+  const block = btn.closest('.article-block');
+  if (block.querySelectorAll('.color-row-wrap').length <= 1) {
+    toast('At least one color row is required!', 'error');
+    return;
+  }
+  btn.closest('.color-row-wrap').remove();
+}
+
+// ═══════════════════════════════════════
+// RESET FORM
+// ═══════════════════════════════════════
+function resetForm() {
+  document.getElementById('entryGodown').value = '';
+  document.getElementById('entryDate').value = todayStr();
+  document.getElementById('entryParty').value = '';
+  document.getElementById('entryRemarks').value = '';
+  document.getElementById('articlesContainer').innerHTML = '';
+  articleCount = 0;
+  setType('IN');
+  addArticleBlock();
+}
+
+// ═══════════════════════════════════════
+// SAVE ENTRY
+// ═══════════════════════════════════════
+async function saveEntry() {
+  const godown = document.getElementById('entryGodown').value;
+  const date = document.getElementById('entryDate').value;
+  const party = document.getElementById('entryParty').value.trim();
+  const remarks = document.getElementById('entryRemarks').value.trim();
+  const type = currentType;
+
+  if (!godown) { toast('Please select a godown!', 'error'); return; }
+
+  // Collect articles
+  const blocks = document.querySelectorAll('.article-block');
+  if (!blocks.length) { toast('Add at least one article!', 'error'); return; }
+
+  const inserts = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    const artno = block.querySelector('.ab-artno').value.trim();
+    const artname = block.querySelector('.ab-artname').value.trim();
+
+    if (!artno) {
+      toast(`Article #${i + 1}: Article number is required!`, 'error');
+      block.querySelector('.ab-artno').focus();
+      return;
+    }
+
+    const colorRows = Array.from(block.querySelectorAll('.color-row-wrap')).map(row => ({
+      color: row.querySelector('.cr-color').value.trim(),
+      inQty: type === 'IN' ? (parseInt(row.querySelector('.cr-in').value) || 0) : 0,
+      outQty: type === 'OUT' ? (parseInt(row.querySelector('.cr-out').value) || 0) : 0
+    }));
+
+    const total_qty = colorRows.reduce((s, c) => s + (type === 'IN' ? c.inQty : c.outQty), 0);
+
+    inserts.push({
+      godown, type, date, party, remarks,
+      article: artno,
+      article_name: artname,
+      colors: colorRows,
+      total_qty
+    });
+  }
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Saving...';
+  setSyncStatus('syncing', 'Saving...');
+
+  const { error } = await sb.from('entries').insert(inserts);
+  btn.disabled = false;
+  btn.textContent = '✅ Save Entry';
+
+  if (error) {
+    toast('❌ Save failed: ' + error.message, 'error');
+    setSyncStatus('error', 'Save failed');
+    return;
+  }
+
+  resetForm();
+  toast(`✅ ${inserts.length} article(s) saved!`);
+}
+
+// ═══════════════════════════════════════
+// GODOWNS
+// ═══════════════════════════════════════
+async function addGodown() {
+  const name = document.getElementById('newGodownName').value.trim();
+  if (!name) { toast('Please enter a godown name!', 'error'); return; }
+  if (appData.godowns.find(g => g.toLowerCase() === name.toLowerCase())) { toast('This godown already exists!', 'error'); return; }
+  const { error } = await sb.from('godowns').insert({ name });
+  if (error) { toast('❌ ' + error.message, 'error'); return; }
+  document.getElementById('newGodownName').value = '';
+  toast('✅ Godown added!');
+}
+
+async function deleteGodown(name) {
+  if (!confirm(`"${name}" delete? All its entries will also be deleted.`)) return;
+  appData.godowns = appData.godowns.filter(g => g !== name);
+  appData.entries = appData.entries.filter(e => e.godown !== name);
+  renderAll();
+  toast('Godown deleted!');
+  await sb.from('entries').delete().eq('godown', name);
+  await sb.from('godowns').delete().eq('name', name);
+}
+
+function renderGodowns() {
+  const tbody = document.getElementById('godownsBody');
+  if (!appData.godowns.length) {
+    tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><div class="ico">🏭</div><p>No godowns added yet.</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = appData.godowns.map((g, i) => `
+    <tr>
+      <td style="font-family:'Space Mono',monospace;color:var(--text2)">${i + 1}</td>
+      <td style="font-weight:700">${g}</td>
+      <td>
+        <div class="edit-only" style="display:flex;gap:6px" class="edit-only">
+          <button class="btn btn-primary btn-sm btn-icon" onclick="openEditGodownModal(${JSON.stringify(g)})">✏️</button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteGodown(${JSON.stringify(g)})">🗑</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function populateGodownSelects() {
+  const opts = '<option value="">— Select Godown —</option>' + appData.godowns.map(g => `<option value="${g}">${g}</option>`).join('');
+  document.getElementById('entryGodown').innerHTML = opts;
+  const allOpt = '<option value="">All Godowns</option>' + appData.godowns.map(g => `<option value="${g}">${g}</option>`).join('');
+  document.getElementById('fGdn').innerHTML = allOpt;
+  document.getElementById('fStockGdn').innerHTML = allOpt;
+}
+
+// ═══════════════════════════════════════
+// EDIT GODOWN
+// ═══════════════════════════════════════
+function openEditGodownModal(name) {
+  editGodownOldName = name;
+  document.getElementById('editGodownInput').value = name;
+  document.getElementById('editGodownModal').classList.add('open');
+  setTimeout(() => {
+    const inp = document.getElementById('editGodownInput');
+    inp.focus(); inp.select();
+    inp.onkeydown = e => {
+      if (e.key === 'Enter') confirmEditGodown();
+      if (e.key === 'Escape') closeEditGodownModal();
+    };
+  }, 50);
+}
+
+function closeEditGodownModal() {
+  editGodownOldName = null;
+  document.getElementById('editGodownModal').classList.remove('open');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeEditGodownModal();
+    closeEditEntryModal();
+  }
+});
+
+async function confirmEditGodown() {
+  const newName = document.getElementById('editGodownInput').value.trim();
+  if (!newName) { toast('Please enter a name!', 'error'); return; }
+  if (newName === editGodownOldName) { closeEditGodownModal(); return; }
+  if (appData.godowns.find(g => g.toLowerCase() === newName.toLowerCase() && g !== editGodownOldName)) {
+    toast('This godown name already exists!', 'error'); return;
+  }
+  const oldName = editGodownOldName; // save before closing modal clears it
+  closeEditGodownModal();
+
+  setSyncStatus('syncing', 'Renaming godown...');
+
+  // Optimistic UI update immediately
+  appData.godowns = appData.godowns.map(g => g === oldName ? newName : g);
+  appData.entries = appData.entries.map(e => e.godown === oldName ? { ...e, godown: newName } : e);
+  renderAll();
+  toast('✅ Godown renamed!');
+
+  try {
+    // Step 1: Insert new godown name
+    const { error: insertErr } = await sb.from('godowns').insert({ name: newName });
+    if (insertErr && !insertErr.message.includes('duplicate')) throw insertErr;
+
+    // Step 2: Update all entries godown field
+    const { error: entriesErr } = await sb.from('entries').update({ godown: newName }).eq('godown', oldName);
+    if (entriesErr) throw entriesErr;
+
+    // Step 3: Delete old godown
+    const { error: deleteErr } = await sb.from('godowns').delete().eq('name', oldName);
+    if (deleteErr) throw deleteErr;
+
+    setSyncStatus('online', 'Synced — ' + new Date().toLocaleTimeString('en-IN'));
+  } catch(err) {
+    toast('❌ Rename failed: ' + err.message, 'error');
+    setSyncStatus('error', 'Rename failed');
+    await loadAll(); // revert to server state
+  }
+}
+
+// ═══════════════════════════════════════
+// EDIT ENTRY
+// ═══════════════════════════════════════
+function openEditEntryModal(id) {
+  const entry = appData.entries.find(e => e.id === id);
+  if (!entry) return;
+  editEntryId = id;
+
+  document.getElementById('eeDate').value = entry.date;
+  document.getElementById('eeType').value = entry.type;
+  document.getElementById('eeArticle').value = entry.article;
+  document.getElementById('eeArticleName').value = entry.articleName || '';
+  document.getElementById('eeParty').value = entry.party || '';
+  document.getElementById('eeRemarks').value = entry.remarks || '';
+
+  // Populate godown select
+  const eeGdn = document.getElementById('eeGodown');
+  eeGdn.innerHTML = appData.godowns.map(g => `<option value="${g}" ${g === entry.godown ? 'selected' : ''}>${g}</option>`).join('');
+
+  // Populate color rows
+  const container = document.getElementById('eeColorRows');
+  container.innerHTML = '';
+  const colors = (entry.colors || []);
+  if (colors.length === 0) {
+    eeAddColorRow({ color: '', inQty: 0, outQty: 0 });
+  } else {
+    colors.forEach(c => eeAddColorRow(c));
+  }
+
+  document.getElementById('editEntryModal').classList.add('open');
+  setTimeout(() => document.getElementById('eeDate').focus(), 50);
+}
+
+function closeEditEntryModal() {
+  editEntryId = null;
+  document.getElementById('editEntryModal').classList.remove('open');
+}
+
+function eeAddColorRow(c = {}) {
+  const container = document.getElementById('eeColorRows');
+  const row = document.createElement('div');
+  row.className = 'ee-color-row';
+  row.style.cssText = 'display:grid;grid-template-columns:1fr 70px 70px 32px;gap:6px;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 8px;margin-bottom:5px';
+  row.innerHTML = `
+    <input type="text" placeholder="Color" value="${c.color || ''}" class="ee-color" style="background:transparent;border:none;border-bottom:1px solid var(--border);border-radius:0;padding:3px 4px;color:var(--text);font-size:14px;width:100%">
+    <input type="number" placeholder="0" value="${c.inQty || 0}" class="ee-in" min="0" style="text-align:center;padding:4px;font-size:13px">
+    <input type="number" placeholder="0" value="${c.outQty || 0}" class="ee-out" min="0" style="text-align:center;padding:4px;font-size:13px">
+    <button class="btn btn-danger btn-icon btn-sm" onclick="this.closest('.ee-color-row').remove()" tabindex="-1" style="padding:4px 6px;font-size:12px">✕</button>
+  `;
+  container.appendChild(row);
+}
+
+async function confirmEditEntry() {
+  const date = document.getElementById('eeDate').value;
+  const type = document.getElementById('eeType').value;
+  const godown = document.getElementById('eeGodown').value;
+  const article = document.getElementById('eeArticle').value.trim();
+  const article_name = document.getElementById('eeArticleName').value.trim();
+  const party = document.getElementById('eeParty').value.trim();
+  const remarks = document.getElementById('eeRemarks').value.trim();
+
+  if (!article) { toast('Article number is required!', 'error'); return; }
+  if (!godown) { toast('Please select a godown!', 'error'); return; }
+
+  const colorRowEls = document.getElementById('eeColorRows').querySelectorAll('.ee-color-row');
+  const colors = Array.from(colorRowEls).map(row => ({
+    color: row.querySelector('.ee-color').value.trim(),
+    inQty: parseInt(row.querySelector('.ee-in').value) || 0,
+    outQty: parseInt(row.querySelector('.ee-out').value) || 0
+  }));
+
+  const total_qty = colors.reduce((s, c) => s + (type === 'IN' ? c.inQty : c.outQty), 0);
+  const id = editEntryId;
+
+  // Show saving state
+  const saveBtn = document.querySelector('#editEntryModal .btn-primary');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ Saving...'; }
+
+  setSyncStatus('syncing', 'Updating entry...');
+
+  const { data, error } = await sb.from('entries').update({
+    date,
+    type,
+    godown,
+    article,
+    article_name,
+    party,
+    remarks,
+    colors: colors,
+    total_qty
+  }).eq('id', id).select();
+
+  if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '✅ Save'; }
+
+  if (error) {
+    toast('❌ Update failed: ' + error.message, 'error');
+    setSyncStatus('error', 'Update failed');
+    return;
+  }
+
+  // Update local data from returned row
+  if (data && data.length) {
+    appData.entries = appData.entries.map(e => e.id === id ? dbRowToEntry(data[0]) : e);
+  } else {
+    appData.entries = appData.entries.map(e => e.id === id
+      ? { ...e, date, type, godown, article, articleName: article_name, party, remarks, colors, totalQty: total_qty }
+      : e
+    );
+  }
+
+  closeEditEntryModal();
+  renderAll();
+  setSyncStatus('online', 'Synced — ' + new Date().toLocaleTimeString('en-IN'));
+  toast('✅ Entry updated!');
+}
+
+// ═══════════════════════════════════════
+// RENDER ALL
+// ═══════════════════════════════════════
+function renderAll() {
+  populateGodownSelects();
+  renderGodowns();
+  renderLedger();
+  renderStock();
+  renderQuickStats();
+  renderArticleSuggestions();
+  renderDashboard();
+  // Re-apply access mode so newly rendered edit buttons are hidden for viewers
+  applyAccessMode(isEditor);
+}
+
+// ═══════════════════════════════════════
+// LEDGER
+// ═══════════════════════════════════════
+function renderLedger() {
+  const art = document.getElementById('fArt').value.toLowerCase();
+  const gdn = document.getElementById('fGdn').value;
+  const typ = document.getElementById('fType').value;
+  const from = document.getElementById('fFrom').value;
+  const to = document.getElementById('fTo').value;
+
+  let list = appData.entries.filter(e => {
+    if (art && !e.article.toLowerCase().includes(art) && !(e.articleName || '').toLowerCase().includes(art)) return false;
+    if (gdn && e.godown !== gdn) return false;
+    if (typ && e.type !== typ) return false;
+    if (from && e.date < from) return false;
+    if (to && e.date > to) return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('ledgerBody');
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state"><div class="ico">📋</div><p>No entries found.</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map((e, i) => {
+    const pills = (e.colors || []).map(c => {
+      const qty = e.type === 'IN' ? c.inQty : c.outQty;
+      const cls = e.type === 'IN' ? 'cin' : 'cout';
+      return `<div class="color-pill">${c.color || '—'}: <span class="${cls}">${qty}</span></div>`;
+    }).join('');
+    const tqColor = e.type === 'IN' ? 'var(--in-color)' : 'var(--out-color)';
+    const savedAt = e.createdAt ? fmtDateTime(e.createdAt) : '—';
+    return `<tr>
+      <td style="font-family:'Space Mono',monospace;color:var(--text2);font-size:11px">${list.length - i}</td>
+      <td style="white-space:nowrap">${fmtDate(e.date)}</td>
+      <td style="white-space:nowrap;font-size:11px;color:var(--text2);font-family:'Space Mono',monospace">${savedAt}</td>
+      <td style="font-weight:600">${e.godown}</td>
+      <td><span class="badge badge-${e.type.toLowerCase()}">${e.type}</span></td>
+      <td style="font-family:'Space Mono',monospace;font-weight:700;color:var(--accent2)">${e.article}</td>
+      <td style="color:var(--text2)">${e.articleName || '—'}</td>
+      <td><div class="color-pills">${pills || '—'}</div></td>
+      <td style="font-family:'Space Mono',monospace;font-weight:700;color:${tqColor}">${e.totalQty}</td>
+      <td>${e.party || '—'}</td>
+      <td style="color:var(--text2);font-size:13px">${e.remarks || '—'}</td>
+      <td>
+        <div class="edit-only" style="display:flex;gap:4px">
+          <button class="btn btn-primary btn-icon btn-sm" onclick="openEditEntryModal('${e.id}')">✏️</button>
+          <button class="btn btn-danger btn-icon btn-sm" onclick="openDeleteModal('${e.id}')">🗑</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function clearFilters() {
+  ['fArt', 'fFrom', 'fTo'].forEach(id => document.getElementById(id).value = '');
+  ['fGdn', 'fType'].forEach(id => document.getElementById(id).value = '');
+  renderLedger();
+}
+
+// ═══════════════════════════════════════
+// STOCK
+// ═══════════════════════════════════════
+function buildStockMap(godownFilter) {
+  const m = {};
+  appData.entries.forEach(e => {
+    if (godownFilter && e.godown !== godownFilter) return;
+    (e.colors || []).forEach(c => {
+      // Normalize: lowercase key so Blue/BLUE/blue all merge
+      const colorNorm = (c.color || '(no color)').toLowerCase().trim();
+      const key = `${e.article.toLowerCase()}|||${e.godown}|||${colorNorm}`;
+      if (!m[key]) m[key] = {
+        article: e.article,
+        articleName: e.articleName || '',
+        godown: e.godown,
+        // Display: capitalize first letter
+        color: colorNorm === '(no color)' ? '(no color)' : colorNorm.charAt(0).toUpperCase() + colorNorm.slice(1),
+        inQty: 0, outQty: 0
+      };
+      m[key].inQty += (c.inQty || 0);
+      m[key].outQty += (c.outQty || 0);
+    });
+  });
+  return m;
+}
+
+function setStockGodown(g) {
+  activeStockGodown = g;
+  // Sync dropdown too
+  const sel = document.getElementById('fStockGdn');
+  if (sel) sel.value = g;
+  renderStock();
+}
+
+function renderStock() {
+  const art = document.getElementById('fStockArt').value.toLowerCase();
+  // Use activeStockGodown (set by chip) OR dropdown value
+  const gFilter = activeStockGodown || document.getElementById('fStockGdn').value;
+
+  // Chips
+  const gf2 = activeStockGodown || document.getElementById('fStockGdn').value;
+  document.getElementById('stockChips').innerHTML =
+    `<button class="g-chip ${gf2 === '' ? 'active' : ''}" onclick="setStockGodown('')">All</button>` +
+    appData.godowns.map(g => `<button class="g-chip ${gf2 === g ? 'active' : ''}" onclick="setStockGodown(${JSON.stringify(g)})">${g}</button>`).join('');
+
+  let rows = Object.values(buildStockMap(gFilter));
+  if (art) rows = rows.filter(r => r.article.toLowerCase().includes(art) || r.articleName.toLowerCase().includes(art));
+  rows.sort((a, b) => a.article.localeCompare(b.article) || a.godown.localeCompare(b.godown) || a.color.localeCompare(b.color));
+
+  const tbody = document.getElementById('stockBody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="ico">📊</div><p>No stock found.</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const s = r.inQty - r.outQty;
+    const cls = s > 0 ? 'sp' : s < 0 ? 'sn' : 'sz';
+    return `<tr>
+      <td style="font-family:'Space Mono',monospace;font-weight:700;color:var(--accent2)">${r.article}</td>
+      <td style="color:var(--text2)">${r.articleName || '—'}</td>
+      <td style="font-weight:600">${r.godown}</td>
+      <td>${r.color}</td>
+      <td class="stock-qty sp">${r.inQty}</td>
+      <td class="stock-qty" style="color:var(--out-color)">${r.outQty}</td>
+      <td class="stock-qty ${cls}">${s}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════
+// QUICK STATS (entry tab top)
+// ═══════════════════════════════════════
+function renderQuickStats() {
+  const tE = appData.entries.length;
+  const tI = appData.entries.reduce((s, e) => s + (e.colors || []).reduce((a, c) => a + (c.inQty || 0), 0), 0);
+  const tO = appData.entries.reduce((s, e) => s + (e.colors || []).reduce((a, c) => a + (c.outQty || 0), 0), 0);
+  const arts = new Set(appData.entries.map(e => e.article)).size;
+  document.getElementById('quickStats').innerHTML = `
+    <div class="stat-card"><div class="label">Total Entries</div><div class="value" style="color:var(--accent2)">${tE}</div></div>
+    <div class="stat-card"><div class="label">Total IN</div><div class="value" style="color:var(--in-color)">${tI}</div></div>
+    <div class="stat-card"><div class="label">Total OUT</div><div class="value" style="color:var(--out-color)">${tO}</div></div>
+    <div class="stat-card"><div class="label">Articles</div><div class="value" style="color:var(--accent4)">${arts}</div></div>
+    <div class="stat-card"><div class="label">Godowns</div><div class="value" style="color:var(--accent)">${appData.godowns.length}</div></div>`;
+  renderDashboard();
+}
+
+// ═══════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════
+function renderDashboard() {
+  const el = document.getElementById('dashboardContent');
+  if (!el) return;
+
+  const tE = appData.entries.length;
+  const tI = appData.entries.reduce((s, e) => s + (e.colors||[]).reduce((a,c) => a+(c.inQty||0),0), 0);
+  const tO = appData.entries.reduce((s, e) => s + (e.colors||[]).reduce((a,c) => a+(c.outQty||0),0), 0);
+  const tArts = new Set(appData.entries.map(e => e.article)).size;
+
+  let html = `
+  <div class="dash-section">
+    <h3>Overall Summary</h3>
+    <div class="stats-row">
+      <div class="stat-card"><div class="label">Total Entries</div><div class="value" style="color:var(--accent2)">${tE}</div></div>
+      <div class="stat-card"><div class="label">Total IN</div><div class="value" style="color:var(--in-color)">${tI}</div></div>
+      <div class="stat-card"><div class="label">Total OUT</div><div class="value" style="color:var(--out-color)">${tO}</div></div>
+      <div class="stat-card"><div class="label">Net Stock</div><div class="value" style="color:var(--accent4)">${tI-tO}</div></div>
+      <div class="stat-card"><div class="label">Articles</div><div class="value" style="color:var(--text)">${tArts}</div></div>
+      <div class="stat-card"><div class="label">Godowns</div><div class="value" style="color:var(--accent)">${appData.godowns.length}</div></div>
+    </div>
+  </div>
+  <div class="dash-section">
+    <h3>Godown-wise Breakdown</h3>
+    <div class="godown-cards-grid">`;
+
+  appData.godowns.forEach(g => {
+    const gEntries = appData.entries.filter(e => e.godown === g);
+    const gIn  = gEntries.reduce((s,e) => s+(e.colors||[]).reduce((a,c)=>a+(c.inQty||0),0),0);
+    const gOut = gEntries.reduce((s,e) => s+(e.colors||[]).reduce((a,c)=>a+(c.outQty||0),0),0);
+    const gArts = new Set(gEntries.map(e => e.article));
+    const gStock = gIn - gOut;
+
+    // Article + color breakdown
+    const artMap = {};
+    gEntries.forEach(e => {
+      const key = e.article;
+      if (!artMap[key]) artMap[key] = { name: e.articleName||'', colors:{} };
+      (e.colors||[]).forEach(c => {
+        const cn = (c.color||'(no color)').toLowerCase().trim();
+        if (!artMap[key].colors[cn]) artMap[key].colors[cn] = { in:0, out:0 };
+        artMap[key].colors[cn].in  += (c.inQty||0);
+        artMap[key].colors[cn].out += (c.outQty||0);
+      });
+    });
+    const artRows = Object.entries(artMap).sort((a,b)=>a[0].localeCompare(b[0]));
+
+    html += `
+    <div class="godown-card">
+      <div class="godown-card-title">🏭 ${g}
+        <span>${gEntries.length} entr${gEntries.length===1?'y':'ies'} &nbsp;|&nbsp; ${gArts.size} article${gArts.size===1?'':'s'}</span>
+      </div>
+      <div class="gd-stats">
+        <div class="gd-stat"><div class="lbl">Total IN</div><div class="val" style="color:var(--in-color)">${gIn}</div></div>
+        <div class="gd-stat"><div class="lbl">Total OUT</div><div class="val" style="color:var(--out-color)">${gOut}</div></div>
+        <div class="gd-stat"><div class="lbl">Net Stock</div><div class="val" style="color:${gStock>=0?'var(--in-color)':'var(--danger)'}">${gStock}</div></div>
+      </div>`;
+
+    if (artRows.length) {
+      html += `<div class="art-accordion">`;
+      artRows.forEach(([art, d]) => {
+        const colorEntries = Object.entries(d.colors);
+        const artIn  = colorEntries.reduce((s,[,v])=>s+v.in,0);
+        const artOut = colorEntries.reduce((s,[,v])=>s+v.out,0);
+        const artStock = artIn - artOut;
+        const sc = artStock>0?'var(--in-color)':artStock<0?'var(--danger)':'var(--text2)';
+        const uid = 'art_'+g.replace(/\s/g,'_')+'_'+art.replace(/\s/g,'_');
+
+        html += `
+        <div class="art-row" onclick="toggleArtDetail('${uid}')">
+          <span class="art-no">${art}</span>
+          <span style="color:var(--in-color);font-weight:700;font-family:'Space Mono',monospace;text-align:center">${artIn}</span>
+          <span style="color:var(--out-color);font-weight:700;font-family:'Space Mono',monospace;text-align:center">${artOut}</span>
+          <span style="color:${sc};font-weight:700;font-family:'Space Mono',monospace;text-align:center">${artStock}</span>
+          <span class="art-expand-icon">▶</span>
+        </div>
+        <div class="art-detail" id="${uid}" style="display:none">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr>
+              <th style="padding:5px 10px;text-align:left;color:var(--text2);font-size:11px;text-transform:uppercase">Color</th>
+              <th style="padding:5px 10px;text-align:right;color:var(--in-color);font-size:11px;text-transform:uppercase">IN</th>
+              <th style="padding:5px 10px;text-align:right;color:var(--out-color);font-size:11px;text-transform:uppercase">OUT</th>
+              <th style="padding:5px 10px;text-align:right;color:var(--text2);font-size:11px;text-transform:uppercase">Stock</th>
+            </tr></thead>
+            <tbody>
+              ${colorEntries.map(([cn, cv]) => {
+                const cs = cv.in-cv.out;
+                const csc = cs>0?'var(--in-color)':cs<0?'var(--danger)':'var(--text2)';
+                const displayColor = cn.charAt(0).toUpperCase()+cn.slice(1);
+                return `<tr style="border-top:1px solid var(--border)">
+                  <td style="padding:5px 10px">${displayColor}</td>
+                  <td style="padding:5px 10px;text-align:right;color:var(--in-color);font-family:'Space Mono',monospace">${cv.in}</td>
+                  <td style="padding:5px 10px;text-align:right;color:var(--out-color);font-family:'Space Mono',monospace">${cv.out}</td>
+                  <td style="padding:5px 10px;text-align:right;color:${csc};font-family:'Space Mono',monospace;font-weight:700">${cs}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+      });
+      html += `</div>
+      <div style="display:grid;grid-template-columns:minmax(60px,1.2fr) 50px 50px 50px 18px;gap:4px;padding:6px 8px;background:var(--surface2);border-radius:6px;margin-bottom:4px;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text2);letter-spacing:1px">
+        <span>Article</span>
+        <span style="text-align:center;color:var(--in-color)">IN</span>
+        <span style="text-align:center;color:var(--out-color)">OUT</span>
+        <span style="text-align:center">Stock</span>
+        <span></span>
+      </div>`;
+    } else {
+      html += `<p style="color:var(--text2);font-size:13px;padding:10px 0">No entries yet.</p>`;
+    }
+
+    html += `</div>`;
+  });
+
+  if (!appData.godowns.length) html += `<div style="color:var(--text2);padding:20px">No godowns added yet. Go to Godowns tab to add.</div>`;
+  html += `</div></div>`;
+  el.innerHTML = html;
+}
+
+function toggleArtDetail(uid) {
+  const el = document.getElementById(uid);
+  if (!el) return;
+  const visible = el.style.display !== 'none';
+  el.style.display = visible ? 'none' : 'block';
+  // rotate expand icon
+  const row = el.previousElementSibling;
+  if (row) {
+    const icon = row.querySelector('.art-expand-icon');
+    if (icon) icon.textContent = visible ? '▶' : '▼';
+  }
+}
+
+// ═══════════════════════════════════════
+// AUTH — Simple Password System
+// ═══════════════════════════════════════
+const EDITOR_PASSWORD = 'Wafa@786';
+const AUTH_KEY = 'godownAuth';
+let isEditor = false;
+let currentUser = null;
+
+function showLoginScreen() {
+  const ls = document.getElementById('loginScreen');
+  ls.style.display = 'flex';
+  document.getElementById('loginError').style.display = 'none';
+  document.getElementById('loginPassword').value = '';
+  setTimeout(() => document.getElementById('loginPassword').focus(), 100);
+}
+
+function hideLoginScreen() {
+  document.getElementById('loginScreen').style.display = 'none';
+}
+
+function checkPassword() {
+  const pwd = document.getElementById('loginPassword').value;
+  if (pwd === EDITOR_PASSWORD) {
+    localStorage.setItem(AUTH_KEY, 'editor');
+    hideLoginScreen();
+    applyAccessMode(true);
+    toast('✅ Access granted! You are now an editor.');
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('loginPassword').focus();
+  }
+}
+
+function logoutUser() {
+  localStorage.removeItem(AUTH_KEY);
+  applyAccessMode(false);
+  toast('Logged out!');
+}
+
+async function checkAuthSession() {
+  const stored = localStorage.getItem(AUTH_KEY);
+  applyAccessMode(stored === 'editor');
+}
+
+function applyAccessMode(editor) {
+  isEditor = editor;
+  const banner = document.getElementById('viewerBanner');
+  const adminBtn = document.getElementById('adminTabBtn');
+
+  if (editor) {
+    banner.style.display = 'none';
+    adminBtn.style.display = '';
+    document.querySelectorAll('.edit-only').forEach(el => el.style.display = '');
+  } else {
+    banner.style.display = 'flex';
+    adminBtn.style.display = 'none';
+    document.querySelectorAll('.edit-only').forEach(el => el.style.display = 'none');
+    const active = document.querySelector('.tab-content.active');
+    if (active && (active.id === 'tab-entry' || active.id === 'tab-godowns')) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-dashboard').classList.add('active');
+      document.querySelector('[onclick*="dashboard"]').classList.add('active');
+    }
+  }
+}
+
+function loadAdminPanel() {
+  const emailEl = document.getElementById('loggedInEmail');
+  if (emailEl) emailEl.textContent = 'Editor (Password Login)';
+  const pendingEl = document.getElementById('pendingRequests');
+  if (pendingEl) pendingEl.innerHTML = '<span style="color:var(--text2)">Password-based auth — no requests.</span>';
+  const approvedEl = document.getElementById('approvedUsers');
+  if (approvedEl) approvedEl.innerHTML = '<span style="color:var(--text2)">Share password <strong style="color:var(--accent2)">Wafa@786</strong> with trusted users.</span>';
+}
+
+// ═══════════════════════════════════════
+// ARTICLE SUGGESTIONS
+// ═══════════════════════════════════════
+function renderArticleSuggestions() {
+  const arts = [...new Set(appData.entries.map(e => e.article))];
+  // Update all per-block article datalists
+  document.querySelectorAll('[id^="artSuggest_"]').forEach(dl => {
+    dl.innerHTML = arts.map(a => `<option value="${a}">`).join('');
+  });
+  // Also refresh color suggestions for OUT blocks already filled
+  if (currentType === 'OUT') {
+    document.querySelectorAll('.article-block').forEach(block => refreshColorSuggest(block));
+  }
+}
+
+// ═══════════════════════════════════════
+// DELETE
+// ═══════════════════════════════════════
+function openDeleteModal(id) { deleteTarget = id; document.getElementById('deleteModal').classList.add('open'); }
+function closeDeleteModal() { deleteTarget = null; document.getElementById('deleteModal').classList.remove('open'); }
+
+async function confirmDelete() {
+  const id = deleteTarget;
+  closeDeleteModal();
+  appData.entries = appData.entries.filter(e => e.id !== id);
+  renderAll();
+  toast('Entry deleted!');
+  const { error } = await sb.from('entries').delete().eq('id', id);
+  if (error) {
+    toast('Delete failed: ' + error.message, 'error');
+    await loadAll();
+  } else {
+    setSyncStatus('online', 'Synced — ' + new Date().toLocaleTimeString('en-IN'));
+  }
+}
+
+// ═══════════════════════════════════════
+// EXPORT CSV
+// ═══════════════════════════════════════
+function exportCSV() {
+  const h = ['Date', 'Godown', 'Type', 'Article No', 'Article Name', 'Color', 'Qty', 'Party', 'Remarks'];
+  const rows = [];
+  appData.entries.forEach(e => {
+    (e.colors || []).forEach(c => {
+      const qty = e.type === 'IN' ? c.inQty : c.outQty;
+      rows.push([e.date, e.godown, e.type, e.article, e.articleName || '', c.color || '', qty, e.party || '', e.remarks || '']);
+    });
+  });
+  dlCSV([h, ...rows], 'godown_ledger.csv');
+}
+
+function exportStockCSV() {
+  const h = ['Article No', 'Article Name', 'Godown', 'Color', 'Total IN', 'Total OUT', 'Stock'];
+  const rows = Object.values(buildStockMap()).map(r => [r.article, r.articleName, r.godown, r.color, r.inQty, r.outQty, r.inQty - r.outQty]);
+  dlCSV([h, ...rows], 'godown_stock.csv');
+}
+
+function dlCSV(rows, filename) {
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+  a.download = filename;
+  a.click();
+}
+
+// ═══════════════════════════════════════
+// EXPORT EXCEL
+// ═══════════════════════════════════════
+function styleSheet(ws, cols) {
+  ws['!cols'] = Array(cols).fill({ wch: 18 });
+  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  for (let C = range.s.c; C <= range.e.c; C++) {
+    const cell = ws[XLSX.utils.encode_cell({ r: 0, c: C })];
+    if (cell) cell.s = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1F4E79' }, patternType: 'solid' }, alignment: { horizontal: 'center' } };
+  }
+}
+
+function exportLedgerExcel() {
+  const wb = XLSX.utils.book_new();
+  const addSheet = (rows, name) => {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    styleSheet(ws, rows[0].length);
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  };
+  const lRows = [['Date', 'Godown', 'Type', 'Article No', 'Article Name', 'Color', 'Qty', 'Party', 'Remarks']];
+  appData.entries.forEach(e => (e.colors || []).forEach(c => {
+    const qty = e.type === 'IN' ? c.inQty : c.outQty;
+    lRows.push([e.date, e.godown, e.type, e.article, e.articleName || '', c.color || '', qty, e.party || '', e.remarks || '']);
+  }));
+  addSheet(lRows, 'Ledger');
+
+  const iRows = [['Date', 'Godown', 'Article No', 'Article Name', 'Color', 'IN Qty', 'Party', 'Remarks']];
+  appData.entries.filter(e => e.type === 'IN').forEach(e =>
+    (e.colors || []).forEach(c => iRows.push([e.date, e.godown, e.article, e.articleName || '', c.color || '', c.inQty, e.party || '', e.remarks || ''])));
+  addSheet(iRows, 'IN Entries');
+
+  const oRows = [['Date', 'Godown', 'Article No', 'Article Name', 'Color', 'OUT Qty', 'Party', 'Remarks']];
+  appData.entries.filter(e => e.type === 'OUT').forEach(e =>
+    (e.colors || []).forEach(c => oRows.push([e.date, e.godown, e.article, e.articleName || '', c.color || '', c.outQty, e.party || '', e.remarks || ''])));
+  addSheet(oRows, 'OUT Entries');
+
+  XLSX.writeFile(wb, `Godown_Ledger_${todayStr()}.xlsx`);
+}
+
+function exportStockExcel() {
+  const wb = XLSX.utils.book_new();
+  const allRows = Object.values(buildStockMap()).sort((a, b) => a.article.localeCompare(b.article) || a.godown.localeCompare(b.godown));
+  const sRows = [['Article No', 'Article Name', 'Godown', 'Color', 'Total IN', 'Total OUT', 'Current Stock']];
+  allRows.forEach(r => sRows.push([r.article, r.articleName, r.godown, r.color, r.inQty, r.outQty, r.inQty - r.outQty]));
+  const wsA = XLSX.utils.aoa_to_sheet(sRows);
+  styleSheet(wsA, sRows[0].length);
+  XLSX.utils.book_append_sheet(wb, wsA, 'All Stock');
+
+  appData.godowns.forEach(g => {
+    const gRows = [['Article No', 'Article Name', 'Color', 'Total IN', 'Total OUT', 'Current Stock']];
+    allRows.filter(r => r.godown === g).forEach(r => gRows.push([r.article, r.articleName, r.color, r.inQty, r.outQty, r.inQty - r.outQty]));
+    if (gRows.length > 1) {
+      const ws = XLSX.utils.aoa_to_sheet(gRows);
+      styleSheet(ws, gRows[0].length);
+      XLSX.utils.book_append_sheet(wb, ws, g.substring(0, 31));
+    }
+  });
+  XLSX.writeFile(wb, `Godown_Stock_${todayStr()}.xlsx`);
+}
+</script>
+</body>
+</html>
